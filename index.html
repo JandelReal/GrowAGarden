@@ -4,7 +4,7 @@
   <title>Grow a Garden Multiplayer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: sans-serif; text-align: center; }
+    body { font-family: sans-serif; text-align: center; background: #e0f7e9; }
     .garden-wrapper {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -14,12 +14,16 @@
       margin: auto;
     }
     .player-section {
-      border: 2px solid #ccc;
+      border: 2px solid #4caf50;
+      background: #a5d6a7;
       padding: 10px;
+      border-radius: 10px;
     }
     .player-name {
       font-weight: bold;
       margin-bottom: 10px;
+      font-size: 1.2em;
+      color: #2e7d32;
     }
     .grid {
       display: grid;
@@ -33,10 +37,25 @@
       background-color: #8B4513;
       border: 1px solid #654321;
       cursor: pointer;
+      position: relative;
+      border-radius: 4px;
+      user-select: none;
     }
-    .planted { background-color: green; }
-    .growing { background-color: yellow; }
-    .ready   { background-color: orange; }
+    .planted { background-color: #2e7d32; }
+    .growing { background-color: #f9a825; }
+    .ready   { background-color: #ef6c00; cursor: pointer; }
+
+    .timer-text {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      font-size: 10px;
+      color: white;
+      text-shadow: 0 0 3px black;
+      pointer-events: none;
+      font-weight: bold;
+      user-select: none;
+    }
   </style>
 </head>
 <body>
@@ -48,7 +67,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 
-  <!-- Game Script -->
+  <!-- Your game script -->
   <script src="main.js"></script>
 </body>
 </html>
