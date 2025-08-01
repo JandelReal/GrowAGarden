@@ -19,6 +19,7 @@ let currentSlot = null;
 let serverId = null;
 let userId = null;
 let playerName = "Anonymous";
+const timers = {};
 
 const gardenContainer = document.getElementById("garden-container");
 
@@ -89,14 +90,21 @@ function showTimer(slot, i, plantedAt, durationSeconds) {
   const timerText = document.getElementById(`timer-${slot}-${i}`);
   if (!timerText) return;
 
-  const intervalId = setInterval(() => {
+  const key = slot + "-" + i;
+
+  if (timers[key]) {
+    clearInterval(timers[key]);
+  }
+
+  timers[key] = setInterval(() => {
     const now = Date.now();
-    const elapsed = (now - plantedAt);
+    const elapsed = now - plantedAt;
     const remaining = durationSeconds * 1000 - elapsed;
 
     if (remaining <= 0) {
       timerText.innerText = "";
-      clearInterval(intervalId);
+      clearInterval(timers[key]);
+      delete timers[key];
     } else {
       timerText.innerText = `${Math.ceil(remaining / 1000)}s`;
     }
