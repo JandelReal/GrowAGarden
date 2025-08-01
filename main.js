@@ -20,79 +20,134 @@ let currentSlot = null;
 let serverId = null;
 let userId = null;
 let playerName = null;
-let timers = {}; // For countdown timers per plot
+let timers = {};
 
 const gardenContainer = document.getElementById("garden-container");
+const loginContainer = document.getElementById("login-container");
+const emailInput = document.getElementById("email-input");
+const passwordInput = document.getElementById("password-input");
+const loginBtn = document.getElementById("login-btn");
+const registerBtn = document.getElementById("register-btn");
+const loginMsg = document.getElementById("login-msg");
+const logoutBtn = document.getElementById("logout-btn");
+const shopDiv = document.getElementById("shop");
+const shopCoinsSpan = document.getElementById("shop-coins");
+const buySeedBtn = document.getElementById("buy-seed-btn");
+const shopMsg = document.getElementById("shop-msg");
 
-// --- UI for Name Login and Shop ---
+// --- Authentication handlers ---
 
-// Prompt player to enter name
-function promptPlayerName() {
-  let name = prompt("Enter your player name:", "");
-  if (!name || name.trim() === "") {
-    name = "Player_" + Math.floor(Math.random() * 10000);
-  }
-  return name.trim();
-}
+loginBtn.onclick = () => {
+  loginMsg.innerText = "";
+  auth.signInWithEmailAndPassword(emailInput.value, passwordInput.value)
+    .then(cred => onLoginSuccess(cred.user))
+    .catch(err => loginMsg.innerText = err.message);
+};
 
-// Create the Shop UI element
-function createShopUI() {
-  const shopDiv = document.createElement("div");
-  shopDiv.id = "shop";
-  shopDiv.style = "position:fixed; bottom:20px; right:20px; background:#4caf50; color:#fff; padding:15px; border-radius:10px; max-width:250px; font-family:sans-serif;";
+registerBtn.onclick = () => {
+  loginMsg.innerText = "";
+  auth.createUserWithEmailAndPassword(emailInput.value, passwordInput.value)
+    .then(cred => onLoginSuccess(cred.user))
+    .catch(err => loginMsg.innerText = err.message);
+};
 
-  shopDiv.innerHTML = `
-    <h3>🌾 Shop</h3>
-    <div>Coins: <span id="shop-coins">0</span></div>
-    <button id="buy-seed-btn">Buy Seed (5 coins)</button>
-    <p id="shop-msg" style="margin-top:8px; min-height:18px;"></p>
-  `;
+logoutBtn.onclick = () => {
+  auth.signOut();
+};
 
-  document.body.appendChild(shopDiv);
+// Called when user successfully logs in
+function onLoginSuccess(user) {
+  loginContainer.style.display = "none";
+  gardenContainer.style.display = "grid";
+  shopDiv.style.display = "block";
+  logoutBtn.style.display = "block";
 
-  document.getElementById("buy-seed-btn").addEventListener("click", buySeed);
-}
+  userId = user.uid;
+  const email = user.email || `user${Math.floor(Math.random() * 10000)}@example.com`;
 
-// Buy seed function (example, stores seeds in localStorage)
-function buySeed() {
-  const coinsRef = db.ref(`servers/${serverId}/slot${currentSlot}/coins`);
-  coinsRef.transaction(coins => {
-    if ((coins || 0) >= 5) {
-      // Deduct coins
-      coins -= 5;
-      addSeedToInventory();
-      showShopMessage("Seed purchased!");
-      updateShopCoins(coins);
-      return coins;
+  // Check if user already assigned to a slot
+  db.ref("servers").once("value").then(snapshot => {
+    const servers = snapshot.val() || {};
+    let found = false;
+
+    for (const sid in servers) {
+      for (let s = 1; s <= MAX_PLAYERS; s++) {
+        const slotData = servers[sid][`slot${s}`];
+        if (slotData && slotData.uid === userId) {
+          serverId = sid;
+          currentSlot = s;
+          playerName = slotData.name || email.split("@")[0];
+          found = true;
+          break;
+        }
+      }
+      if (found) break;
+    }
+
+    if (found) {
+      setupGame();
     } else {
-      showShopMessage("Not enough coins!");
-      return; // abort transaction
+      joinOrCreateServer(userId, email);
     }
   });
 }
 
-function addSeedToInventory() {
-  let seeds = parseInt(localStorage.getItem("seeds") || "0");
-  seeds++;
-  localStorage.setItem("seeds", seeds);
-}
-
-function showShopMessage(msg) {
-  const msgEl = document.getElementById("shop-msg");
-  if (msgEl) {
-    msgEl.innerText = msg;
-    setTimeout(() => { msgEl.innerText = ""; }, 3000);
+auth.onAuthStateChanged(user => {
+  if (user) {
+    onLoginSuccess(user);
+  } else {
+    loginContainer.style.display = "block";
+    gardenContainer.style.display = "none";
+    shopDiv.style.display = "none";
+    logoutBtn.style.display = "none";
   }
+});
+
+// --- Game logic ---
+
+function joinOrCreateServer(uid, email) {
+  db.ref("servers").once("value").then(snapshot => {
+    const servers = snapshot.val() || {};
+    for (const id in servers) {
+      for (let s = 1; s <= MAX_PLAYERS; s++) {
+        if (!servers[id][`slot${s}`]) {
+          assignSlot(id, s, uid, email);
+          return;
+        }
+      }
+    }
+    const newServerRef = db.ref("servers").push();
+    assignSlot(newServerRef.key, 1, uid, email);
+  });
 }
 
-function updateShopCoins(coins) {
-  const coinsEl = document.getElementById("shop-coins");
-  if (coinsEl) {
-    coinsEl.innerText = coins;
-  }
-}
+function assignSlot(id, slot, uid, email) {
+  serverId = id;
+  currentSlot = slot;
+  userId = uid;
 
-// --- Garden UI and game logic ---
+  const userRef = db.ref(`servers/${id}/slot${slot}`);
+  const defaultName = email ? email.split("@")[0] : `Player_${Math.floor(Math.random() * 10000)}`;
+
+  userRef.once("value").then(snapshot => {
+    if (!snapshot.exists()) {
+      userRef.set({
+        uid: uid,
+        name: defaultName,
+        crops: {},
+        coins: 0
+      });
+    }
+    playerName = defaultName;
+
+    // Give 1 seed to new players if none yet saved locally
+    if (!localStorage.getItem("seeds")) {
+      localStorage.setItem("seeds", "1");
+    }
+
+    setupGame();
+  });
+}
 
 function createPlayerGrid(slot, isOwnPlot) {
   const section = document.createElement("div");
@@ -203,70 +258,34 @@ function clearTimer(slot, i) {
 }
 
 function handleCropClick(slot, i) {
-  if (slot !== currentSlot) return; // Only own plot
+  if (slot !== currentSlot) return;
 
   const cropRef = db.ref(`servers/${serverId}/slot${slot}/crops/${i}`);
   cropRef.once("value").then(snapshot => {
     const data = snapshot.val();
 
     if (!data) {
-      // Check if player has seeds to plant
       let seeds = parseInt(localStorage.getItem("seeds") || "0");
       if (seeds <= 0) {
         alert("You need seeds! Buy some in the shop.");
         return;
       }
-      // Plant crop
       const plantedAt = Date.now();
       cropRef.set({ state: "planted", plantedAt });
       seeds--;
       localStorage.setItem("seeds", seeds);
     } else if (data.state === "ready") {
-      // Harvest crop, earn coins, reset crop
       const coinsRef = db.ref(`servers/${serverId}/slot${slot}/coins`);
       coinsRef.transaction(coins => (coins || 0) + 5);
-
       cropRef.remove();
     }
   });
 }
 
-function joinOrCreateServer(uid) {
-  db.ref("servers").once("value").then(snapshot => {
-    const servers = snapshot.val() || {};
-    for (const id in servers) {
-      for (let s = 1; s <= MAX_PLAYERS; s++) {
-        if (!servers[id][`slot${s}`]) {
-          assignSlot(id, s, uid);
-          return;
-        }
-      }
-    }
-    const newServerRef = db.ref("servers").push();
-    assignSlot(newServerRef.key, 1, uid);
-  });
-}
-
-function assignSlot(id, slot, uid) {
-  serverId = id;
-  currentSlot = slot;
-  userId = uid;
-  const userRef = db.ref(`servers/${id}/slot${slot}`);
-
-  userRef.once("value").then(snapshot => {
-    if (!snapshot.exists()) {
-      userRef.set({
-        uid: uid,
-        name: playerName,
-        crops: {},
-        coins: 0
-      });
-    }
-    setupGame();
-  });
-}
-
 function setupGame() {
+  gardenContainer.innerHTML = "";
+  timers = {};
+
   for (let s = 1; s <= MAX_PLAYERS; s++) {
     const isOwn = (s === currentSlot);
     createPlayerGrid(s, isOwn);
@@ -292,13 +311,36 @@ function setupGame() {
   }
 }
 
-// --- Start Game ---
+// --- Shop logic ---
 
-playerName = promptPlayerName();
+buySeedBtn.onclick = () => {
+  const coinsRef = db.ref(`servers/${serverId}/slot${currentSlot}/coins`);
+  coinsRef.transaction(coins => {
+    if ((coins || 0) >= 5) {
+      coins -= 5;
+      addSeedToInventory();
+      showShopMessage("Seed purchased!");
+      updateShopCoins(coins);
+      return coins;
+    } else {
+      showShopMessage("Not enough coins!");
+      return;
+    }
+  });
+};
 
-auth.signInAnonymously().then(cred => {
-  userId = cred.user.uid;
-  joinOrCreateServer(userId);
-  createShopUI();
-});
+function addSeedToInventory() {
+  let seeds = parseInt(localStorage.getItem("seeds") || "0");
+  seeds++;
+  localStorage.setItem("seeds", seeds);
+}
+
+function showShopMessage(msg) {
+  shopMsg.innerText = msg;
+  setTimeout(() => { shopMsg.innerText = ""; }, 3000);
+}
+
+function updateShopCoins(coins) {
+  shopCoinsSpan.innerText = coins;
+}
 
