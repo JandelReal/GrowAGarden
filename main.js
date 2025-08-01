@@ -20,10 +20,8 @@ let serverId = null;
 let userId = null;
 let playerName = "Anonymous";
 
-// Create 6 player plot sections
 const gardenContainer = document.getElementById("garden-container");
 
-// Helper to create 5x5 grid
 function createPlayerGrid(slot, isOwnPlot) {
   const section = document.createElement("div");
   section.className = "player-section";
@@ -45,6 +43,16 @@ function createPlayerGrid(slot, isOwnPlot) {
     if (isOwnPlot) {
       plot.addEventListener("click", () => plantCrop(slot, i));
     }
+    // Add timer text element inside each plot
+    const timerText = document.createElement("div");
+    timerText.className = "timer-text";
+    timerText.id = `timer-${slot}-${i}`;
+    timerText.style.fontSize = "10px";
+    timerText.style.color = "white";
+    timerText.style.position = "relative";
+    timerText.style.top = "-28px";
+    plot.appendChild(timerText);
+
     grid.appendChild(plot);
   }
 
@@ -53,22 +61,63 @@ function createPlayerGrid(slot, isOwnPlot) {
   gardenContainer.appendChild(section);
 }
 
-function updatePlot(slot, i, state) {
+function updatePlot(slot, i, data) {
   const plot = document.getElementById(`plot-${slot}-${i}`);
-  if (!plot) return;
+  const timerText = document.getElementById(`timer-${slot}-${i}`);
+  if (!plot || !timerText) return;
+
   plot.className = "plot";
-  if (state === "planted") plot.classList.add("planted");
-  if (state === "growing") plot.classList.add("growing");
-  if (state === "ready") plot.classList.add("ready");
+  timerText.innerText = "";
+
+  if (!data) return;
+
+  const { state, plantedAt } = data;
+
+  if (state === "planted") {
+    plot.classList.add("planted");
+    showTimer(slot, i, plantedAt, 3);
+  } else if (state === "growing") {
+    plot.classList.add("growing");
+    showTimer(slot, i, plantedAt, 6);
+  } else if (state === "ready") {
+    plot.classList.add("ready");
+  }
+}
+
+// Show countdown timer in seconds until next stage
+function showTimer(slot, i, plantedAt, durationSeconds) {
+  const timerText = document.getElementById(`timer-${slot}-${i}`);
+  if (!timerText) return;
+
+  const intervalId = setInterval(() => {
+    const now = Date.now();
+    const elapsed = (now - plantedAt);
+    const remaining = durationSeconds * 1000 - elapsed;
+
+    if (remaining <= 0) {
+      timerText.innerText = "";
+      clearInterval(intervalId);
+    } else {
+      timerText.innerText = `${Math.ceil(remaining / 1000)}s`;
+    }
+  }, 500);
 }
 
 function plantCrop(slot, i) {
   const ref = db.ref(`servers/${serverId}/slot${slot}/crops/${i}`);
   ref.once("value").then(snapshot => {
-    if (!snapshot.exists()) {
-      ref.set("planted");
-      setTimeout(() => ref.set("growing"), 3000);
-      setTimeout(() => ref.set("ready"), 6000);
+    const val = snapshot.val();
+    if (!val || val.state === "ready") {
+      const plantedAt = Date.now();
+      ref.set({ state: "planted", plantedAt });
+
+      setTimeout(() => {
+        ref.update({ state: "growing" });
+      }, 3000);
+
+      setTimeout(() => {
+        ref.update({ state: "ready" });
+      }, 6000);
     }
   });
 }
@@ -125,3 +174,4 @@ auth.signInAnonymously().then(cred => {
   playerName = "Player_" + Math.floor(Math.random() * 10000);
   joinOrCreateServer(cred.user.uid);
 });
+
