@@ -232,6 +232,8 @@ function updatePlot(slot, i, data) {
   const now = Date.now();
   const elapsed = now - plantedAt;
 
+  console.log(`Plot ${slot}-${i}: plantedAt=${plantedAt}, now=${now}, elapsed=${elapsed}`);
+
   const isReady = elapsed >= 9000;
   const isGrowing = elapsed >= 3000 && elapsed < 9000;
 
