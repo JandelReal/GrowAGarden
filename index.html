@@ -5,139 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body { font-family: sans-serif; text-align: center; background: #e0f7e9; margin:0; padding:0; }
-    #login-container {
-      margin: 20px auto;
-      max-width: 320px;
-      padding: 15px;
-      background: #4caf50;
-      border-radius: 10px;
-      color: white;
-    }
-    #login-container input {
-      width: 90%;
-      margin: 8px 0;
-      padding: 8px;
-      border-radius: 5px;
-      border: none;
-      font-size: 1em;
-    }
-    #login-container button {
-      width: 45%;
-      padding: 10px;
-      margin: 5px 2%;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    #login-container button:hover {
-      background: #81c784;
-      color: #fff;
-    }
-    #login-msg {
-      min-height: 18px;
-      margin-top: 6px;
-      color: #ffcdd2;
-      font-weight: bold;
-    }
+    #login-container { margin: 20px auto; max-width: 320px; padding: 15px; background: #4caf50; border-radius: 10px; color: white; }
+    #login-container input { width: 90%; margin: 8px 0; padding: 8px; border-radius: 5px; border: none; font-size: 1em; }
+    #login-container button { width: 45%; padding: 10px; margin: 5px 2%; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    #login-container button:hover { background: #81c784; color: #fff; }
+    #login-msg { min-height: 18px; margin-top: 6px; color: #ffcdd2; font-weight: bold; }
 
-    #garden-container {
-      display: none;
-      max-width: 1200px;
-      margin: 20px auto;
-      padding: 0 20px;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
-    }
-    .player-section {
-      border: 2px solid #4caf50;
-      background: #a5d6a7;
-      padding: 10px;
-      border-radius: 10px;
-      user-select: none;
-    }
-    .player-name {
-      font-weight: bold;
-      margin-bottom: 10px;
-      font-size: 1.2em;
-      color: #2e7d32;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(5, 40px);
-      gap: 5px;
-      justify-content: center;
-    }
-    .plot {
-      width: 40px;
-      height: 40px;
-      background-color: #8B4513;
-      border: 1px solid #654321;
-      cursor: pointer;
-      position: relative;
-      border-radius: 4px;
-    }
+    #garden-container { display: none; max-width: 1200px; margin: 20px auto; padding: 0 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .player-section { border: 2px solid #4caf50; background: #a5d6a7; padding: 10px; border-radius: 10px; user-select: none; }
+    .player-name { font-weight: bold; margin-bottom: 10px; font-size: 1.2em; color: #2e7d32; }
+    .grid { display: grid; grid-template-columns: repeat(5, 40px); gap: 5px; justify-content: center; }
+    .plot { width: 40px; height: 40px; background-color: #8B4513; border: 1px solid #654321; cursor: pointer; position: relative; border-radius: 4px; }
     .plot.planted { background-color: #2e7d32; }
     .plot.growing { background-color: #f9a825; }
     .plot.ready   { background-color: #ef6c00; cursor: pointer; }
+    .timer-text { position: absolute; bottom: 2px; right: 2px; font-size: 10px; color: white; text-shadow: 0 0 3px black; pointer-events: none; font-weight: bold; }
 
-    .timer-text {
-      position: absolute;
-      bottom: 2px;
-      right: 2px;
-      font-size: 10px;
-      color: white;
-      text-shadow: 0 0 3px black;
-      pointer-events: none;
-      font-weight: bold;
-    }
+    #shop { position: fixed; bottom: 20px; right: 20px; background: #4caf50; color: white; padding: 15px; border-radius: 10px; max-width: 250px; box-shadow: 0 0 10px rgba(0,0,0,0.2); z-index: 1000; user-select: none; }
+    #shop button { background: white; color: #4caf50; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 8px; }
+    #shop button:hover { background: #81c784; color: white; }
 
-    #shop {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: #4caf50;
-      color: white;
-      padding: 15px;
-      border-radius: 10px;
-      max-width: 250px;
-      font-family: sans-serif;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
-      z-index: 1000;
-      user-select: none;
-    }
-    #shop button {
-      background: white;
-      color: #4caf50;
-      border: none;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-weight: bold;
-      cursor: pointer;
-      margin-top: 8px;
-    }
-    #shop button:hover {
-      background: #81c784;
-      color: white;
-    }
-
-    #logout-btn {
-      position: fixed;
-      top: 10px;
-      right: 20px;
-      background: #f44336;
-      color: white;
-      padding: 8px 12px;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      cursor: pointer;
-      z-index: 1001;
-    }
-    #logout-btn:hover {
-      background: #d32f2f;
-    }
+    #logout-btn { position: fixed; top: 10px; right: 20px; background: #f44336; color: white; padding: 8px 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; z-index: 1001; }
+    #logout-btn:hover { background: #d32f2f; }
   </style>
 </head>
 <body>
@@ -160,6 +49,7 @@
   <div id="shop" style="display:none;">
     <h3>🌾 Shop</h3>
     <div>Coins: <span id="shop-coins">0</span></div>
+    <div>Seeds: <span id="shop-seeds">0</span></div>
     <button id="buy-seed-btn">Buy Seed (5 coins)</button>
     <p id="shop-msg" style="margin-top:8px; min-height:18px;"></p>
   </div>
