@@ -210,34 +210,45 @@ function updatePlot(slot, i, data) {
     return;
   }
 
-  const { state, plantedAt } = data;
+  const plantedAt = data.plantedAt;
+  const now = Date.now();
+  const elapsed = now - plantedAt;
 
-  if (state === "planted") {
+  // Auto-update growth stage based on elapsed time
+  const cropRef = db.ref(`servers/${serverId}/slot${slot}/crops/${i}`);
+
+  if (elapsed >= 9000 && data.state !== "ready") {
+    cropRef.set({ state: "ready", plantedAt });
+    return;
+  } else if (elapsed >= 3000 && elapsed < 9000 && data.state !== "growing") {
+    cropRef.set({ state: "growing", plantedAt });
+    return;
+  }
+
+  // Apply visual state
+  if (data.state === "planted") {
     plot.classList.add("planted");
     showTimer(slot, i, plantedAt, 3);
-  } else if (state === "growing") {
+  } else if (data.state === "growing") {
     plot.classList.add("growing");
-    showTimer(slot, i, plantedAt, 6);
-  } else if (state === "ready") {
+    showTimer(slot, i, plantedAt, 9);
+  } else if (data.state === "ready") {
     plot.classList.add("ready");
     clearTimer(slot, i);
   }
 }
 
-function showTimer(slot, i, plantedAt, durationSeconds) {
+function showTimer(slot, i, plantedAt, targetSec) {
   const timerText = document.getElementById(`timer-${slot}-${i}`);
   if (!timerText) return;
 
-  const key = slot + "-" + i;
-
-  if (timers[key]) {
-    clearInterval(timers[key]);
-  }
+  const key = `${slot}-${i}`;
+  if (timers[key]) clearInterval(timers[key]);
 
   timers[key] = setInterval(() => {
     const now = Date.now();
     const elapsed = now - plantedAt;
-    const remaining = durationSeconds * 1000 - elapsed;
+    const remaining = targetSec * 1000 - elapsed;
 
     if (remaining <= 0) {
       timerText.innerText = "";
