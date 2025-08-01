@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Grow a Garden</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: sans-serif; text-align: center; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(5, 60px);
+      gap: 10px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    .plot {
+      width: 60px;
+      height: 60px;
+      background-color: #8B4513;
+      border: 2px solid #654321;
+      cursor: pointer;
+    }
+    .planted { background-color: green; }
+    .growing { background-color: yellow; }
+    .ready   { background-color: orange; }
+  </style>
+</head>
+<body>
+  <h1>Grow a Garden 🌱</h1>
+  <div class="grid" id="garden"></div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  
+  <!-- Game logic -->
+  <script src="main.js"></script>
+</body>
+</html>
