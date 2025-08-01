@@ -93,14 +93,32 @@ auth.onAuthStateChanged(user => {
 function joinOrCreateServer(uid, email) {
   db.ref("servers").once("value").then(snapshot => {
     const servers = snapshot.val() || {};
-    for (const id in servers) {
+
+    // First, check if user already assigned anywhere
+    for (const sid in servers) {
       for (let s = 1; s <= MAX_PLAYERS; s++) {
-        if (!servers[id][`slot${s}`]) {
-          return assignSlot(id, s, uid, email);
+        const slot = servers[sid][`slot${s}`];
+        if (slot && slot.uid === uid) {
+          serverId = sid;
+          currentSlot = s;
+          playerName = slot.name || email.split("@")[0];
+          setupGame();
+          return;
         }
       }
     }
-    // No available slots, create new server
+
+    // No assigned slot found, find empty slot
+    for (const sid in servers) {
+      for (let s = 1; s <= MAX_PLAYERS; s++) {
+        if (!servers[sid][`slot${s}`]) {
+          assignSlot(sid, s, uid, email);
+          return;
+        }
+      }
+    }
+
+    // No empty slot, create new server with slot 1
     const newRef = db.ref("servers").push();
     assignSlot(newRef.key, 1, uid, email);
   });
@@ -228,26 +246,37 @@ function updatePlot(slot, i, data) {
     return;
   }
 
-  const plantedAt = data.plantedAt;
+  const plantedAt = Number(data.plantedAt);
   const now = Date.now();
   const elapsed = now - plantedAt;
 
-  console.log(`Plot ${slot}-${i}: plantedAt=${plantedAt}, now=${now}, elapsed=${elapsed}`);
+  console.log(`Slot${slot} Plot${i}: plantedAt=${plantedAt}, now=${now}, elapsed=${elapsed}`);
 
-  const isReady = elapsed >= 9000;
-  const isGrowing = elapsed >= 3000 && elapsed < 9000;
+  if (elapsed < 0) {
+    // plantedAt from the future? Reset plot.
+    clearTimer(slot, i);
+    db.ref(`servers/${serverId}/slot${slot}/crops/${i}`).remove();
+    return;
+  }
+
+  const GROW_TIME = 9000; // total growth time in ms
+  const MID_GROW = 3000;  // transition from planted to growing
+
+  const isReady = elapsed >= GROW_TIME;
+  const isGrowing = elapsed >= MID_GROW && elapsed < GROW_TIME;
 
   if (isReady) {
     plot.classList.add("ready");
     clearTimer(slot, i);
   } else if (isGrowing) {
     plot.classList.add("growing");
-    showTimer(slot, i, plantedAt, 9);
+    showTimer(slot, i, plantedAt, GROW_TIME / 1000);
   } else {
     plot.classList.add("planted");
-    showTimer(slot, i, plantedAt, 3);
+    showTimer(slot, i, plantedAt, MID_GROW / 1000);
   }
 }
+
 
 function showTimer(slot, i, plantedAt, targetSec) {
   const timerText = document.getElementById(`timer-${slot}-${i}`);
