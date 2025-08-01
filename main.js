@@ -13,13 +13,10 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
-const GARDEN_SIZE = 25;
+const GARDEN_SIZE = 25; // 5x5 plots per player
 const MAX_PLAYERS = 6;
 
-let currentSlot = null;
-let serverId = null;
-let userId = null;
-let playerName = null;
+let currentSlot = null, serverId = null, userId = null, playerName = null;
 let timers = {};
 
 const gardenContainer = document.getElementById("garden-container");
@@ -32,10 +29,11 @@ const loginMsg = document.getElementById("login-msg");
 const logoutBtn = document.getElementById("logout-btn");
 const shopDiv = document.getElementById("shop");
 const shopCoinsSpan = document.getElementById("shop-coins");
+const shopSeedsSpan = document.getElementById("shop-seeds");
 const buySeedBtn = document.getElementById("buy-seed-btn");
 const shopMsg = document.getElementById("shop-msg");
 
-// --- Authentication handlers ---
+// --- AUTHENTICATION HANDLERS ---
 
 loginBtn.onclick = () => {
   loginMsg.innerText = "";
@@ -51,51 +49,40 @@ registerBtn.onclick = () => {
     .catch(err => loginMsg.innerText = err.message);
 };
 
-logoutBtn.onclick = () => {
-  auth.signOut();
-};
+logoutBtn.onclick = () => auth.signOut();
 
-// Called when user successfully logs in
 function onLoginSuccess(user) {
   loginContainer.style.display = "none";
   gardenContainer.style.display = "grid";
   shopDiv.style.display = "block";
   logoutBtn.style.display = "block";
-
   userId = user.uid;
-  const email = user.email || `user${Math.floor(Math.random() * 10000)}@example.com`;
+  const email = user.email || `user${Math.floor(Math.random()*10000)}@example.com`;
 
-  // Check if user already assigned to a slot
+  // Check if user is already assigned a slot on a server
   db.ref("servers").once("value").then(snapshot => {
     const servers = snapshot.val() || {};
     let found = false;
-
     for (const sid in servers) {
       for (let s = 1; s <= MAX_PLAYERS; s++) {
-        const slotData = servers[sid][`slot${s}`];
-        if (slotData && slotData.uid === userId) {
+        const d = servers[sid][`slot${s}`];
+        if (d && d.uid === userId) {
           serverId = sid;
           currentSlot = s;
-          playerName = slotData.name || email.split("@")[0];
+          playerName = d.name || email.split("@")[0];
           found = true;
           break;
         }
       }
       if (found) break;
     }
-
-    if (found) {
-      setupGame();
-    } else {
-      joinOrCreateServer(userId, email);
-    }
+    found ? setupGame() : joinOrCreateServer(userId, email);
   });
 }
 
 auth.onAuthStateChanged(user => {
-  if (user) {
-    onLoginSuccess(user);
-  } else {
+  if (user) onLoginSuccess(user);
+  else {
     loginContainer.style.display = "block";
     gardenContainer.style.display = "none";
     shopDiv.style.display = "none";
@@ -103,21 +90,19 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-// --- Game logic ---
-
 function joinOrCreateServer(uid, email) {
   db.ref("servers").once("value").then(snapshot => {
     const servers = snapshot.val() || {};
     for (const id in servers) {
       for (let s = 1; s <= MAX_PLAYERS; s++) {
         if (!servers[id][`slot${s}`]) {
-          assignSlot(id, s, uid, email);
-          return;
+          return assignSlot(id, s, uid, email);
         }
       }
     }
-    const newServerRef = db.ref("servers").push();
-    assignSlot(newServerRef.key, 1, uid, email);
+    // No available slots, create new server
+    const newRef = db.ref("servers").push();
+    assignSlot(newRef.key, 1, uid, email);
   });
 }
 
@@ -125,76 +110,109 @@ function assignSlot(id, slot, uid, email) {
   serverId = id;
   currentSlot = slot;
   userId = uid;
-
-  const userRef = db.ref(`servers/${id}/slot${slot}`);
-  const defaultName = email ? email.split("@")[0] : `Player_${Math.floor(Math.random() * 10000)}`;
-
-  userRef.once("value").then(snapshot => {
-    if (!snapshot.exists()) {
-      userRef.set({
-        uid: uid,
-        name: defaultName,
-        crops: {},
-        coins: 0
+  const defaultName = email ? email.split("@")[0] : `Player_${Math.floor(Math.random()*10000)}`;
+  db.ref(`servers/${id}/slot${slot}`).once("value").then(snap => {
+    if (!snap.exists()) {
+      db.ref(`servers/${id}/slot${slot}`).set({
+        uid, name: defaultName, crops: {}, coins: 0, seeds: 1
       });
     }
     playerName = defaultName;
-
-    // Give 1 seed to new players if none yet saved locally
-    if (!localStorage.getItem("seeds")) {
-      localStorage.setItem("seeds", "1");
-    }
-
     setupGame();
   });
 }
 
-function createPlayerGrid(slot, isOwnPlot) {
-  const section = document.createElement("div");
-  section.className = "player-section";
-  section.id = "section-" + slot;
+// --- SETUP GARDEN UI AND LISTENERS ---
 
-  const nameEl = document.createElement("div");
-  nameEl.className = "player-name";
-  nameEl.id = "name-" + slot;
-  nameEl.innerText = "Loading...";
+function setupGame() {
+  gardenContainer.innerHTML = "";
+  db.ref(`servers/${serverId}`).once("value").then(snapshot => {
+    const data = snapshot.val() || {};
+    for (let s = 1; s <= MAX_PLAYERS; s++) {
+      const slotData = data[`slot${s}`];
+      if (!slotData) continue;
 
-  const coinsEl = document.createElement("div");
-  coinsEl.id = `coins-${slot}`;
-  coinsEl.style.fontWeight = "bold";
-  coinsEl.style.color = "#2e7d32";
-  coinsEl.style.marginBottom = "8px";
-  coinsEl.innerText = "Coins: 0";
+      // Player container
+      const playerDiv = document.createElement("div");
+      playerDiv.className = "player-section";
 
-  section.appendChild(nameEl);
-  section.appendChild(coinsEl);
+      // Player name header
+      const nameEl = document.createElement("div");
+      nameEl.className = "player-name";
+      nameEl.innerText = slotData.name || `Player ${s}`;
+      playerDiv.appendChild(nameEl);
 
-  const grid = document.createElement("div");
-  grid.className = "grid";
-  grid.id = "grid-" + slot;
+      // Garden grid
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      for (let i = 0; i < GARDEN_SIZE; i++) {
+        const plot = document.createElement("div");
+        plot.className = "plot";
+        plot.id = `plot-${s}-${i}`;
+        if (s === currentSlot) {
+          plot.onclick = () => handleCropClick(s, i);
+        }
+        const timer = document.createElement("div");
+        timer.className = "timer-text";
+        timer.id = `timer-${s}-${i}`;
+        plot.appendChild(timer);
+        grid.appendChild(plot);
+      }
+      playerDiv.appendChild(grid);
+      gardenContainer.appendChild(playerDiv);
 
-  for (let i = 0; i < GARDEN_SIZE; i++) {
-    const plot = document.createElement("div");
-    plot.className = "plot";
-    plot.id = `plot-${slot}-${i}`;
-    if (isOwnPlot) {
-      plot.addEventListener("click", () => handleCropClick(slot, i));
+      // Listen for crops changes on this slot
+      db.ref(`servers/${serverId}/slot${s}/crops`).on("value", snap => {
+        const crops = snap.val() || {};
+        for (let i = 0; i < GARDEN_SIZE; i++) {
+          updatePlot(s, i, crops[i]);
+        }
+      });
+
+      // Listen for coins changes on this slot
+      db.ref(`servers/${serverId}/slot${s}/coins`).on("value", snap => {
+        if (s === currentSlot) {
+          shopCoinsSpan.innerText = snap.val() || 0;
+        }
+      });
+
+      // Listen for seeds changes on this slot
+      db.ref(`servers/${serverId}/slot${s}/seeds`).on("value", snap => {
+        if (s === currentSlot) {
+          shopSeedsSpan.innerText = snap.val() || 0;
+        }
+      });
     }
-    // Timer text
-    const timerText = document.createElement("div");
-    timerText.className = "timer-text";
-    timerText.id = `timer-${slot}-${i}`;
-    timerText.style.fontSize = "10px";
-    timerText.style.color = "white";
-    timerText.style.position = "relative";
-    timerText.style.top = "-28px";
-    plot.appendChild(timerText);
+  });
+}
 
-    grid.appendChild(plot);
-  }
+// --- CROP PLANTING, HARVESTING, AND UPDATES ---
 
-  section.appendChild(grid);
-  gardenContainer.appendChild(section);
+function handleCropClick(slot, i) {
+  const cropRef = db.ref(`servers/${serverId}/slot${slot}/crops/${i}`);
+  cropRef.once("value").then(snap => {
+    const data = snap.val();
+    if (!data) {
+      // Plant crop if seeds available
+      const seedRef = db.ref(`servers/${serverId}/slot${slot}/seeds`);
+      seedRef.transaction(seeds => {
+        if ((seeds || 0) <= 0) {
+          alert("You need seeds! Buy some in the shop.");
+          return;
+        } else {
+          cropRef.set({ plantedAt: Date.now() });
+          return (seeds || 0) - 1;
+        }
+      });
+    } else {
+      // Harvest if ready
+      const elapsed = Date.now() - data.plantedAt;
+      if (elapsed >= 9000) {
+        cropRef.remove();
+        db.ref(`servers/${serverId}/slot${slot}/coins`).transaction(coins => (coins || 0) + 5);
+      }
+    }
+  });
 }
 
 function updatePlot(slot, i, data) {
@@ -205,7 +223,7 @@ function updatePlot(slot, i, data) {
   plot.className = "plot";
   timerText.innerText = "";
 
-  if (!data) {
+  if (!data || !data.plantedAt) {
     clearTimer(slot, i);
     return;
   }
@@ -214,27 +232,18 @@ function updatePlot(slot, i, data) {
   const now = Date.now();
   const elapsed = now - plantedAt;
 
-  // Auto-update growth stage based on elapsed time
-  const cropRef = db.ref(`servers/${serverId}/slot${slot}/crops/${i}`);
+  const isReady = elapsed >= 9000;
+  const isGrowing = elapsed >= 3000 && elapsed < 9000;
 
-  if (elapsed >= 9000 && data.state !== "ready") {
-    cropRef.set({ state: "ready", plantedAt });
-    return;
-  } else if (elapsed >= 3000 && elapsed < 9000 && data.state !== "growing") {
-    cropRef.set({ state: "growing", plantedAt });
-    return;
-  }
-
-  // Apply visual state
-  if (data.state === "planted") {
-    plot.classList.add("planted");
-    showTimer(slot, i, plantedAt, 3);
-  } else if (data.state === "growing") {
-    plot.classList.add("growing");
-    showTimer(slot, i, plantedAt, 9);
-  } else if (data.state === "ready") {
+  if (isReady) {
     plot.classList.add("ready");
     clearTimer(slot, i);
+  } else if (isGrowing) {
+    plot.classList.add("growing");
+    showTimer(slot, i, plantedAt, 9);
+  } else {
+    plot.classList.add("planted");
+    showTimer(slot, i, plantedAt, 3);
   }
 }
 
@@ -261,78 +270,26 @@ function showTimer(slot, i, plantedAt, targetSec) {
 }
 
 function clearTimer(slot, i) {
-  const key = slot + "-" + i;
+  const key = `${slot}-${i}`;
+  const timerText = document.getElementById(`timer-${slot}-${i}`);
+  if (timerText) timerText.innerText = "";
   if (timers[key]) {
     clearInterval(timers[key]);
     delete timers[key];
   }
 }
 
-function handleCropClick(slot, i) {
-  if (slot !== currentSlot) return;
-
-  const cropRef = db.ref(`servers/${serverId}/slot${slot}/crops/${i}`);
-  cropRef.once("value").then(snapshot => {
-    const data = snapshot.val();
-
-    if (!data) {
-      let seeds = parseInt(localStorage.getItem("seeds") || "0");
-      if (seeds <= 0) {
-        alert("You need seeds! Buy some in the shop.");
-        return;
-      }
-      const plantedAt = Date.now();
-      cropRef.set({ state: "planted", plantedAt });
-      seeds--;
-      localStorage.setItem("seeds", seeds);
-    } else if (data.state === "ready") {
-      const coinsRef = db.ref(`servers/${serverId}/slot${slot}/coins`);
-      coinsRef.transaction(coins => (coins || 0) + 5);
-      cropRef.remove();
-    }
-  });
-}
-
-function setupGame() {
-  gardenContainer.innerHTML = "";
-  timers = {};
-
-  for (let s = 1; s <= MAX_PLAYERS; s++) {
-    const isOwn = (s === currentSlot);
-    createPlayerGrid(s, isOwn);
-
-    const nameRef = db.ref(`servers/${serverId}/slot${s}/name`);
-    nameRef.on("value", snap => {
-      const name = snap.val() || `Player ${s}`;
-      const nameEl = document.getElementById(`name-${s}`);
-      if (nameEl) nameEl.innerText = name;
-    });
-
-    const coinsRef = db.ref(`servers/${serverId}/slot${s}/coins`);
-    coinsRef.on("value", snap => {
-      const coinsEl = document.getElementById(`coins-${s}`);
-      if (coinsEl) coinsEl.innerText = `Coins: ${snap.val() || 0}`;
-      if (s === currentSlot) updateShopCoins(snap.val() || 0);
-    });
-
-    for (let i = 0; i < GARDEN_SIZE; i++) {
-      const cropRef = db.ref(`servers/${serverId}/slot${s}/crops/${i}`);
-      cropRef.on("value", snap => updatePlot(s, i, snap.val()));
-    }
-  }
-}
-
-// --- Shop logic ---
+// --- SHOP FUNCTIONALITY ---
 
 buySeedBtn.onclick = () => {
   const coinsRef = db.ref(`servers/${serverId}/slot${currentSlot}/coins`);
+  const seedsRef = db.ref(`servers/${serverId}/slot${currentSlot}/seeds`);
+
   coinsRef.transaction(coins => {
     if ((coins || 0) >= 5) {
-      coins -= 5;
-      addSeedToInventory();
+      seedsRef.transaction(seeds => (seeds || 0) + 1);
       showShopMessage("Seed purchased!");
-      updateShopCoins(coins);
-      return coins;
+      return (coins || 0) - 5;
     } else {
       showShopMessage("Not enough coins!");
       return;
@@ -340,18 +297,11 @@ buySeedBtn.onclick = () => {
   });
 };
 
-function addSeedToInventory() {
-  let seeds = parseInt(localStorage.getItem("seeds") || "0");
-  seeds++;
-  localStorage.setItem("seeds", seeds);
-}
-
 function showShopMessage(msg) {
   shopMsg.innerText = msg;
-  setTimeout(() => { shopMsg.innerText = ""; }, 3000);
+  setTimeout(() => {
+    shopMsg.innerText = "";
+  }, 3000);
 }
 
-function updateShopCoins(coins) {
-  shopCoinsSpan.innerText = coins;
-}
 
