@@ -120,25 +120,19 @@ function setupGame() {
 
 function loadUserData() {
   const uid = auth.currentUser.uid;
-  const userRef = db.ref("users/" + uid);
-  
-  userRef.once("value").then(snap => {
-    const data = snap.val();
+  const ref = db.ref("users/" + uid);
 
-    if (!data) {
-      // Fix for missing user data: initialize it
-      userRef.set({ seeds: 1, coins: 0 });
-      document.getElementById("shop-seeds").innerText = 1;
-      document.getElementById("shop-coins").innerText = 0;
-    } else {
-      // Show whatever is in the database, with fallback defaults
-      document.getElementById("shop-seeds").innerText = data.seeds ?? 0;
-      document.getElementById("shop-coins").innerText = data.coins ?? 0;
+  ref.on("value", snap => {
+    const data = snap.val() || {};
+    const seeds = typeof data.seeds === 'number' ? data.seeds : 0;
+    const coins = typeof data.coins === 'number' ? data.coins : 0;
 
-      // Fix missing fields (added later or accidentally deleted)
-      if (typeof data.seeds !== 'number') userRef.child("seeds").set(1);
-      if (typeof data.coins !== 'number') userRef.child("coins").set(0);
-    }
+    document.getElementById("shop-seeds").innerText = seeds;
+    document.getElementById("shop-coins").innerText = coins;
+
+    // Ensure missing fields are created
+    if (!('seeds' in data)) ref.child("seeds").set(1);
+    if (!('coins' in data)) ref.child("coins").set(0);
   });
 }
 
