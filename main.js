@@ -48,7 +48,9 @@ function register() {
   auth.createUserWithEmailAndPassword(email, pass)
     .then(cred => {
       const uid = cred.user.uid;
-      db.ref("users/" + uid).set({ seeds: 1, coins: 0 });
+      return db.ref("users/" + uid).set({ seeds: 1, coins: 0 }).then(() => {
+        joinOrCreateServer(uid, email);  // ensure game starts after registration
+      });
     })
     .catch(err => {
       document.getElementById("login-msg").innerText = err.message;
