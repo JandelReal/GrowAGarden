@@ -12,7 +12,7 @@
     #login-msg { min-height: 18px; margin-top: 6px; color: #ffcdd2; font-weight: bold; }
 
     #garden-container { display: none; max-width: 1200px; margin: 20px auto; padding: 0 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-    .player-section { border: 2px solid #4caf50; background: #a5d6a7; padding: 10px; border-radius: 10px; user-select: none; }
+    .player-section { border: 2px solid #4caf50; background: #a5d6a7; padding: 10px; border-radius: 10px; user-select: none; min-height: 300px; }
     .player-name { font-weight: bold; margin-bottom: 10px; font-size: 1.2em; color: #2e7d32; }
     .grid { display: grid; grid-template-columns: repeat(5, 40px); gap: 5px; justify-content: center; }
     .plot { width: 40px; height: 40px; background-color: #8B4513; border: 1px solid #654321; cursor: pointer; position: relative; border-radius: 4px; }
@@ -59,6 +59,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 
+  <!-- Main game logic -->
   <script src="main.js"></script>
 </body>
 </html>
