@@ -38,14 +38,30 @@ document.addEventListener("DOMContentLoaded", () => {
 function login() {
   const email = document.getElementById("email-input").value;
   const pass = document.getElementById("password-input").value;
-  auth.signInWithEmailAndPassword(email, pass).catch(err => {
-    document.getElementById("login-msg").innerText = err.message;
-  });
+
+  if (!email || !pass) {
+    document.getElementById("login-msg").innerText = "Enter both email and password.";
+    return;
+  }
+
+  auth.signInWithEmailAndPassword(email, pass)
+    .then(() => {
+      document.getElementById("login-msg").innerText = "";
+    })
+    .catch(err => {
+      document.getElementById("login-msg").innerText = err.message;
+    });
 }
 
 function register() {
   const email = document.getElementById("email-input").value;
   const pass = document.getElementById("password-input").value;
+
+  if (!email || !pass) {
+    document.getElementById("login-msg").innerText = "Enter both email and password.";
+    return;
+  }
+
   auth.createUserWithEmailAndPassword(email, pass)
     .then(cred => {
       const uid = cred.user.uid;
