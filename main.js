@@ -120,10 +120,25 @@ function setupGame() {
 
 function loadUserData() {
   const uid = auth.currentUser.uid;
-  db.ref("users/" + uid).on("value", snap => {
-    const data = snap.val() || {};
-    document.getElementById("shop-seeds").innerText = data.seeds || 0;
-    document.getElementById("shop-coins").innerText = data.coins || 0;
+  const userRef = db.ref("users/" + uid);
+  
+  userRef.once("value").then(snap => {
+    const data = snap.val();
+
+    if (!data) {
+      // Fix for missing user data: initialize it
+      userRef.set({ seeds: 1, coins: 0 });
+      document.getElementById("shop-seeds").innerText = 1;
+      document.getElementById("shop-coins").innerText = 0;
+    } else {
+      // Show whatever is in the database, with fallback defaults
+      document.getElementById("shop-seeds").innerText = data.seeds ?? 0;
+      document.getElementById("shop-coins").innerText = data.coins ?? 0;
+
+      // Fix missing fields (added later or accidentally deleted)
+      if (typeof data.seeds !== 'number') userRef.child("seeds").set(1);
+      if (typeof data.coins !== 'number') userRef.child("coins").set(0);
+    }
   });
 }
 
