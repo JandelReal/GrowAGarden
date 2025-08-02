@@ -17,6 +17,7 @@ let serverId = null;
 let currentSlot = null;
 let playerName = "";
 let timers = {};
+let liveCrops = {};
 
 const MAX_PLAYERS = 6;
 const PLOTS_PER_PLAYER = 10;
@@ -28,10 +29,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("buy-seed-btn").onclick = buySeed;
 
   auth.onAuthStateChanged(user => {
-    if (user) {
-      joinOrCreateServer(user.uid, user.email);
-    }
+    if (user) joinOrCreateServer(user.uid, user.email);
   });
+
+  setInterval(updateTimers, 1000);
 });
 
 function login() {
@@ -48,8 +49,8 @@ function register() {
   auth.createUserWithEmailAndPassword(email, pass)
     .then(cred => {
       const uid = cred.user.uid;
-      return db.ref("users/" + uid).set({ seeds: 1, coins: 0 }).then(() => {
-        joinOrCreateServer(uid, email);  // ensure game starts after registration
+      db.ref("users/" + uid).set({ seeds: 1, coins: 0 }).then(() => {
+        joinOrCreateServer(uid, email);
       });
     })
     .catch(err => {
@@ -130,7 +131,6 @@ function loadUserData() {
     document.getElementById("shop-seeds").innerText = seeds;
     document.getElementById("shop-coins").innerText = coins;
 
-    // Ensure missing fields are created
     if (!('seeds' in data)) ref.child("seeds").set(1);
     if (!('coins' in data)) ref.child("coins").set(0);
   });
@@ -173,6 +173,7 @@ function renderPlots(slot) {
   db.ref(`servers/${serverId}/slot${slot}/crops`).on("value", snap => {
     const data = snap.val() || {};
     for (let i = 0; i < PLOTS_PER_PLAYER; i++) {
+      liveCrops[`${slot}-${i}`] = data[i] || null;
       updatePlot(slot, i, data[i]);
     }
   });
@@ -187,7 +188,7 @@ function handlePlotClick(slot, i) {
     if (!crop) {
       db.ref(`users/${uid}`).once("value").then(userSnap => {
         const user = userSnap.val();
-        if (user.seeds > 0) {
+        if ((user?.seeds || 0) > 0) {
           const plantedAt = Date.now();
           db.ref(`servers/${serverId}/slot${slot}/crops/${i}`).set({ plantedAt });
           db.ref(`users/${uid}/seeds`).set(user.seeds - 1);
@@ -226,14 +227,13 @@ function updatePlot(slot, i, data) {
 
   if (isReady) {
     plot.classList.add("ready");
-    clearTimer(slot, i);
   } else if (isGrowing) {
     plot.classList.add("growing");
-    showTimer(slot, i, plantedAt, 9);
   } else {
     plot.classList.add("planted");
-    showTimer(slot, i, plantedAt, 3);
   }
+
+  showTimer(slot, i, plantedAt, isReady ? 0 : isGrowing ? 9 : 3);
 }
 
 function showTimer(slot, i, plantedAt, totalSeconds) {
@@ -242,7 +242,7 @@ function showTimer(slot, i, plantedAt, totalSeconds) {
     const now = Date.now();
     const remaining = Math.max(0, Math.ceil((plantedAt + totalSeconds * 1000 - now) / 1000));
     const timerText = document.getElementById(`timer-${slot}-${i}`);
-    if (timerText) timerText.innerText = remaining + "s";
+    if (timerText) timerText.innerText = remaining > 0 ? remaining + "s" : "";
   }
   tick();
   timers[`${slot}-${i}`] = setInterval(tick, 1000);
@@ -258,12 +258,19 @@ function clearTimer(slot, i) {
   if (el) el.innerText = "";
 }
 
+function updateTimers() {
+  for (let key in liveCrops) {
+    const [slot, i] = key.split("-").map(Number);
+    updatePlot(slot, i, liveCrops[key]);
+  }
+}
+
 function buySeed() {
   const uid = auth.currentUser.uid;
   db.ref(`users/${uid}`).once("value").then(snap => {
     const data = snap.val();
-    if ((data.coins || 0) >= 5) {
-      db.ref(`users/${uid}/coins`).set(data.coins - 5);
+    if ((data?.coins || 0) >= 5) {
+      db.ref(`users/${uid}/coins`).set((data.coins || 0) - 5);
       db.ref(`users/${uid}/seeds`).set((data.seeds || 0) + 1);
       document.getElementById("shop-msg").innerText = "Bought 1 seed!";
     } else {
